@@ -1,75 +1,101 @@
 import * as React from "react";
 import { type DataItem, generateMockData } from "../tests/mockDataGenerator";
-import { useMemo, useState } from "react";
 
-// This is the expected return type for the useDataManagement hook
-export type DataManagementResult = {
-  items: DataItem[];
-  totalItems: number;
-  totalPages: number;
-  isLoading: boolean;
-  error: string | null;
-  categories: string[];
-  search?: string;
-  currentPage: number;
-  category?: string;
-  sortBy?: string;
-  nextPage: () => void;
-  previousPage: () => void;
-  setSearch: (q: string) => void;
-  setCategory: (cat: string) => void;
-  setSortBy: (srt: string) => void;
-  categoryFilter: string;
-  setCategoryFilter: (value: string) => void
-};
-
-export function useDataManagement(): DataManagementResult {
-  // Implement your solution here
-
+export function useDataManagement() {
   const itemsPerPage = 20;
+  const [items, setItems] = React.useState<DataItem[]>([]);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(0);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const [search, setSearch] = useState("")
-const [categoryFilter, setCategoryFilter] = useState("")
-  const [sortBy, setSortBy] = React.useState("")
-  const [currentPage, setCurrentPage] = React.useState("");
-  const [items, setItems] = React.useState<DataItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string|null>(null)
+  // Filters and sorting state
+  const [search, setSearch] = React.useState<string>("");
+  const [category, setCategory] = React.useState<string>("");
+  const [sortBy, setSortBy] = React.useState<string>("name");
 
-  // const paginatedData = useMemo(()=> {
-  //   const startIndex = (currentPage - 1) * itemsPerPage;
-  //   const endIndex = startIndex + itemsPerPage;
-  // })
+  // Fetch data asynchronously
+  React.useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await generateMockData();
+        setItems(response);
+        setTotalPages(Math.ceil(response.length / itemsPerPage));
+      } catch (err) {
+        setError("Error fetching data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const filteredItems = useMemo(()=> {
-    return items
-    .filter(item=> item.name.toLowerCase().includes(search.toLowerCase())
-    // .filter((item)=> 
-    //   categoryFilter ? item.category === categoryFilter : true)
-  )}, [items, search, categoryFilter])
+  // Pagination logic
+  const paginatedItems = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return items.slice(startIndex, endIndex);
+  }, [items, currentPage, itemsPerPage]);
 
-console.log('filteredItems', filteredItems)
+  // Filter items based on search and category
+  const filteredItems = React.useMemo(() => {
+    let result = [...items];
 
-console.log('items', items)
-  const getData = async () => {
-    
-    setLoading(true)
-    try{
-      const response = await generateMockData();
-      setItems(response)
-      setLoading(false)
+    if (search) {
+      result = result.filter(item => 
+        item.name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
 
-    }catch(err){
-      setError("Failed to fetch data");
-      setLoading(false)
+    if (category) {
+      result = result.filter(item => item.category === category);
+    }
+
+    // Sorting
+    result.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === "category") {
+        return a.category.localeCompare(b.category);
+      } else if (sortBy === "dateAdded") {
+        return new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
+      }
+      return 0;
+    });
+
+    return result;
+  }, [items, search, category, sortBy]);
+
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
     }
   };
 
-  React.useEffect(() => {
-    getData();
-  }, []);
+  const previousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
   return {
-    // Return an object with the necessary properties as described in the DataManagementResult type
+    items: filteredItems.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    ),
+    totalItems: filteredItems.length,
+    totalPages,
+    isLoading,
+    error,
+    search,
+    setSearch,
+    category,
+    setCategory,
+    sortBy,
+    setSortBy,
+    currentPage,
+    nextPage,
+    previousPage,
   };
 }
